@@ -1,6 +1,7 @@
 import apihandlers.OAIKeys as OAIKeys
 import sys
 import psutil
+import watchers.base_watcher as base_watcher
 
 def main():
     openaikey = OAIKeys.get_api_key()
@@ -17,12 +18,12 @@ def main():
         if index + 1 < len(args):
             target = args[index + 1]
             print(f"Watching process: {target}")
-            # Your process watching logic here
+            find_process(target)
         else:
             print("Error: --watch_process requires a path or process ID")
     
 
-def establish_watcher(pid=None, process_name=None):
+def find_process(pid=None, process_name=None):
     """
     Establish a watcher for a system process based on PID or name.
     
