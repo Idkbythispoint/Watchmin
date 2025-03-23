@@ -25,6 +25,59 @@ def get_oai_tools():
                         "command": {
                             "type": "string",
                             "description": "The shell command to be executed"
+                        },
+                        "timeout": {
+                            "type": "integer",
+                            "description": "The maximum number of seconds to wait for the command to complete",
+                            "default": 60
+                        }
+                    },
+                    "additionalProperties": False
+                },
+                "strict": True
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "run_python_code",
+                "description": "A function to run a Python code snippet",
+                "parameters": {
+                    "type": "object",
+                    "required": [
+                        "code"
+                    ],
+                    "properties": {
+                        "code": {
+                            "type": "string",
+                            "description": "The Python code to be executed"
+                        },
+                        "timeout": {
+                            "type": "integer",
+                            "description": "The maximum number of seconds to wait for the code to complete",
+                            "default": 60
+                        }
+                    },
+                    "additionalProperties": False
+                },
+                "strict": True
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "mark_as_fixed",
+                "description": "Mark the error/issue as fixed or ignorable",
+                "parameters": {
+                    "type": "object",
+                    "required": [
+                        "fixed"
+                    ],
+                    "properties": {
+                        "fixed": {
+                            "type": "boolean",
+                            "description": "Whether the error/issue has been fixed or is ignorable. True is fixed, False is ignorable.",
+                            "default": True
                         }
                     },
                     "additionalProperties": False
