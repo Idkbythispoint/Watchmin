@@ -22,7 +22,8 @@ def get_fixer_tools():
                 "parameters": {
                     "type": "object",
                     "required": [
-                        "command"
+                        "command",
+                        "timeout"
                     ],
                     "properties": {
                         "command": {
@@ -32,7 +33,7 @@ def get_fixer_tools():
                         "timeout": {
                             "type": "integer",
                             "description": "The maximum number of seconds to wait for the command to complete",
-                            "default": 60
+                            #"default": 60
                         }
                     },
                     "additionalProperties": False
@@ -48,7 +49,8 @@ def get_fixer_tools():
                 "parameters": {
                     "type": "object",
                     "required": [
-                        "code"
+                        "code",
+                        "timeout"
                     ],
                     "properties": {
                         "code": {
@@ -58,7 +60,7 @@ def get_fixer_tools():
                         "timeout": {
                             "type": "integer",
                             "description": "The maximum number of seconds to wait for the code to complete",
-                            "default": 60
+                            #"default": 60
                         }
                     },
                     "additionalProperties": False
@@ -80,7 +82,7 @@ def get_fixer_tools():
                         "fixed": {
                             "type": "boolean",
                             "description": "Whether the error/issue has been fixed or is ignorable. True is fixed, False is ignorable.",
-                            "default": True
+                            #  "default": True
                         }
                     },
                     "additionalProperties": False
@@ -96,7 +98,9 @@ def get_fixer_tools():
                 "parameters": {
                     "type": "object",
                     "required": [
-                        "file_path"
+                        "file_path",
+                        "line_start",
+                        "line_end"
                     ],
                     "properties": {
                         "file_path": {
@@ -110,6 +114,42 @@ def get_fixer_tools():
                         "line_end": {
                             "type": "integer",
                             "description": "The line number to end reading at, 0 is the first line, -1 makes it read to the end of the file"
+                        }
+                    },
+                    "additionalProperties": False
+                },
+                "strict": True
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "edit_file",
+                "description": "A function to edit a file",
+                "parameters": {
+                    "type": "object",
+                    "required": [
+                        "file_path",
+                        "line_start",
+                        "line_end",
+                        "new_content"
+                    ],
+                    "properties": {
+                        "file_path": {
+                            "type": "string",
+                            "description": "The path to the file to be edited"
+                        },
+                        "line_start": {
+                            "type": "integer",
+                            "description": "The line number to start editing from, 0 is the first line"
+                        },
+                        "line_end": {
+                            "type": "integer",
+                            "description": "The line number to end editing at, 0 is the first line, -1 makes it edit to the end of the file"
+                        },
+                        "new_content": {
+                            "type": "string",
+                            "description": "The new content to be written to the file"
                         }
                     },
                     "additionalProperties": False
@@ -142,12 +182,17 @@ def get_relevance_format():
                     "end_line": {
                         "type": "number",
                         "description": "The ending line number of the relevant section; -1 indicates the end of the file."
+                    },
+                    "more_relevant_code": {
+                        "type": "boolean",
+                        "description": "Whether there is more relevant code elsewhere."
                     }
                 },
                 "required": [
                     "file_path",
                     "start_line",
-                    "end_line"
+                    "end_line",
+                    "more_relevant_code"
                 ],
                 "additionalProperties": False
             }

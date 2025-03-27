@@ -159,15 +159,8 @@ ConfigHandler.set_defaults({
     "max_tokens_for_llm": 2048,
     "model_for_relevance_finder": "gpt-4o-mini",
     "model_for_fixer": "o3-mini",
-
+    "max_relevance_searches": 3,
+    "max_turns": 20,  # Maximum number of turns for LLM interactions in fixing
+    "fixer_prompt": "You are a specialized code repair assistant focused on fixing runtime errors. Your task is to:\n\n1. Analyze the error message, logs, and code to precisely identify the root cause\n2. Develop a targeted solution that addresses the specific issue, not just symptoms\n3. Use available tools strategically:\n   - run_shell_command: For system-level operations\n   - run_python_code: To test hypotheses or verify solutions\n   - read_file: To examine related code that might impact the error\n   - edit_file: To implement your fixes\n   - mark_as_fixed: ONLY when you've verified the solution works\n\nFollow these principles:\n- Make minimal changes necessary to fix the error\n- Preserve existing code style and patterns\n- Test your changes before marking as fixed\n- Explain your reasoning clearly when making changes\n- Do not output user-facing messages - communicate through tool usage only\n\nOnce fixed, use the mark_as_fixed tool with {\\\"fixed\\\": true} to indicate success.",
+    "VERY_EXPERIMENTAL_automatic_diff_application": False
 })
-
-# Example usage:
-# 1. Import the ConfigHandler in your code:
-#    from internal.confighandler import ConfigHandler
-#
-# 2. Create an instance of ConfigHandler (default settings are applied automatically):
-#    config = ConfigHandler()
-#
-# 3. Access configuration values:
-#    app_name = config.get_value("app_name")  # Returns "Watchmin" if not set in config file

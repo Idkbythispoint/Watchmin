@@ -26,11 +26,11 @@ def get_api_key():
 def check_oai_key(api_key):
     try:
         openai.api_key = api_key
-        openai.Model.list()
+        openai.models.list()
         with open("openai.key", "w") as f:
             f.write(api_key)
         print("API key is valid and saved.")
     except Exception as e:
-        print("Invalid API key. Please try again.")
+        print("Invalid API key. Please try again. Error: ", e)
         return False
     return True
