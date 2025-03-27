@@ -1,12 +1,15 @@
 from openai import OpenAI
 
-def get_oai_tools():
+def get_fixer_tools():
     """
     Returns a list of tool definitions for use with OpenAI API.
     
     Currently includes:
     - run_shell_command: A function to run Ubuntu shell commands
-    
+    - run_python_code: A function to run Python code
+    - mark_as_fixed: A function to mark the error/issue as fixed or ignorable
+    - read_file: A function to read a file in the current working directory
+
     Returns:
         list: A list of tool definitions compatible with OpenAI's function calling
     """
@@ -84,10 +87,76 @@ def get_oai_tools():
                 },
                 "strict": True
             }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "read_file",
+                "description": "A function to read a file in the current working directory",
+                "parameters": {
+                    "type": "object",
+                    "required": [
+                        "file_path"
+                    ],
+                    "properties": {
+                        "file_path": {
+                            "type": "string",
+                            "description": "The full path to the file to be read"
+                        },
+                        "line_start": {
+                            "type": "integer",
+                            "description": "The line number to start reading from, 0 is the first line"
+                        },
+                        "line_end": {
+                            "type": "integer",
+                            "description": "The line number to end reading at, 0 is the first line, -1 makes it read to the end of the file"
+                        }
+                    },
+                    "additionalProperties": False
+                },
+                "strict": True
+            }
         }
     ]
     
     return tools
+
+
+def get_relevance_format():
+    response_format = {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "file_path_information",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "The path to the file."
+                    },
+                    "start_line": {
+                        "type": "number",
+                        "description": "The starting line number of the relevant section; -1 indicates the start of the file."
+                    },
+                    "end_line": {
+                        "type": "number",
+                        "description": "The ending line number of the relevant section; -1 indicates the end of the file."
+                    }
+                },
+                "required": [
+                    "file_path",
+                    "start_line",
+                    "end_line"
+                ],
+                "additionalProperties": False
+            }
+        }
+    }
+
+    return response_format
+
+
 
 # client = OpenAI()
 

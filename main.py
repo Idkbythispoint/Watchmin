@@ -2,9 +2,14 @@ import apihandlers.OAIKeys as OAIKeys
 import sys
 import psutil
 import watchers.base_watcher as base_watcher
+from openai import OpenAI
+import internal.confighandler as confighandler
+
+
+OAIClient = OpenAI(api_key=OAIKeys.get_api_key())
+ConfigHandler = confighandler.ConfigHandler()
 
 def main():
-    openaikey = OAIKeys.get_api_key()
     
     # Check for command line arguments
     args = sys.argv[1:]  # Skip the first argument (script name)
