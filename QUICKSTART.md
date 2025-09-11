@@ -33,7 +33,7 @@ python main.py --list
 python main.py --stop <watcher_id>
 ```
 
-## API Key Setup (For Repair Functionality)
+## API Key Setup
 
 The application will prompt for your OpenAI API key when repair functionality is needed. You can also:
 
@@ -51,12 +51,3 @@ Run the full test suite:
 ```bash
 python run_full_test.py
 ```
-
-## What's Fixed
-
-- ✅ Application starts without requiring API key
-- ✅ Process monitoring works for both new and existing processes  
-- ✅ Error detection works (looks for "error", "exception", "traceback" patterns)
-- ✅ Repair functionality triggers when errors are detected
-- ✅ API key is only requested when repair features are used
-- ✅ No more circular import issues
