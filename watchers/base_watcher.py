@@ -5,7 +5,6 @@ import subprocess
 import threading
 import time
 from collections import deque
-import main
 import json
 from watchers.fixers.base_fixer import BaseFixer
 from watchers.subwatchers.relavance_finder import find_relevant_code
@@ -18,7 +17,7 @@ DEFAULT_BUFFER_SIZE = 100
 DEFAULT_MAX_TURNS = 20
 
 class BaseWatcher:
-    def __init__(self, process_target=None, buffer_size=None, pid=None, max_turns=None):
+    def __init__(self, process_target=None, buffer_size=None, pid=None, max_turns=None, config_handler=None, oai_client=None):
         """
         Initialize a watcher for a specific process.
         
@@ -27,21 +26,31 @@ class BaseWatcher:
             buffer_size: Maximum number of output lines to keep in buffer
             pid: Process ID to attach to (if already running)
             max_turns: Maximum number of interaction turns with LLM before giving up
+            config_handler: Configuration handler instance
+            oai_client: OpenAI client instance
         """
         self.process_target = process_target
         self.pid = pid
+        self.config_handler = config_handler
+        self.oai_client = oai_client
         
         # Use config value for buffer size if not specified
         if buffer_size is None:
             try:
-                buffer_size = main.ConfigHandler.get_value("lines_of_logs_to_give_llm", DEFAULT_BUFFER_SIZE)
+                if self.config_handler:
+                    buffer_size = self.config_handler.get_value("lines_of_logs_to_give_llm", DEFAULT_BUFFER_SIZE)
+                else:
+                    buffer_size = DEFAULT_BUFFER_SIZE
             except (AttributeError, KeyError):
                 buffer_size = DEFAULT_BUFFER_SIZE
         
         # Use config value for max turns if not specified
         if max_turns is None:
             try:
-                max_turns = main.ConfigHandler.get_value("max_turns", DEFAULT_MAX_TURNS)
+                if self.config_handler:
+                    max_turns = self.config_handler.get_value("max_turns", DEFAULT_MAX_TURNS)
+                else:
+                    max_turns = DEFAULT_MAX_TURNS
             except (AttributeError, KeyError):
                 max_turns = DEFAULT_MAX_TURNS
                 
@@ -78,13 +87,28 @@ class BaseWatcher:
             print("Error: Cannot start repair without a valid process ID")
             return
         
+        # Check if we have the required dependencies for repair
+        if not self.config_handler:
+            print("Warning: Cannot start repair without config handler")
+            return
+            
+        # Lazy-load OpenAI client if not provided
+        if not self.oai_client:
+            try:
+                # Import here to avoid circular dependency
+                import main
+                self.oai_client = main.get_oai_client()
+            except Exception as e:
+                print(f"Warning: Cannot load OpenAI client for repair: {e}")
+                return
+        
         # Find relevant code for the error
         try:
-            relevance_data = json.loads(find_relevant_code(logs))
+            relevance_data = json.loads(find_relevant_code(logs, self.oai_client, self.config_handler))
             print(f"Found relevant code: {relevance_data}")
             
             # Create a fixer instance
-            fixer = BaseFixer(self.process_target, process_id)
+            fixer = BaseFixer(self.process_target, process_id, self.config_handler, self.oai_client)
             
             # If we have relevant code, read it
             relevant_code = ""
@@ -142,7 +166,10 @@ class BaseWatcher:
         # Get the number of lines from config or use default
         if lines is None:
             try:
-                lines = main.ConfigHandler.get_value("lines_of_logs_to_give_llm", self.buffer_size)
+                if self.config_handler:
+                    lines = self.config_handler.get_value("lines_of_logs_to_give_llm", self.buffer_size)
+                else:
+                    lines = self.buffer_size
             except (AttributeError, KeyError):
                 lines = self.buffer_size
         
@@ -168,7 +195,7 @@ class BaseWatcher:
             self.output_buffer.append(f"[{stream_type}] {line}")
             
             # Simple error detection - you could make this more sophisticated
-            if "error" in line.lower() or "exception" in line.lower():
+            if "error" in line.lower() or "exception" in line.lower() or "traceback" in line.lower():
                 process_id = self.pid if self.is_attached else (self.process.pid if self.process else None)
                 print(f"Error detected in {self.process_target or process_id} {stream_type}: {line}")
                 # Get the logs
@@ -241,8 +268,35 @@ class BaseWatcher:
         while not self.should_stop:
             try:
                 if not process.is_running():
-                    self.output_buffer.append(f"[attached] Process {process.pid} has terminated")
+                    # Check exit status for errors
+                    try:
+                        exit_code = process.wait()  # Get the exit code
+                        self.output_buffer.append(f"[attached] Process {process.pid} has terminated with exit code {exit_code}")
+                        
+                        # If process exited with non-zero status, treat as potential error
+                        if exit_code != 0:
+                            error_message = f"Process terminated with exit code {exit_code}"
+                            self.output_buffer.append(f"[attached] Error detected: {error_message}")
+                            print(f"Error detected in attached process {process.pid}: {error_message}")
+                            logs = self.get_logs()
+                            self.start_repair(error_message, logs)
+                    except (psutil.NoSuchProcess, psutil.TimeoutExpired):
+                        self.output_buffer.append(f"[attached] Process {process.pid} has terminated")
                     break
+                    
+                # Check recent output buffer entries for errors
+                if len(self.output_buffer) > 0:
+                    # Check last few entries for errors
+                    recent_entries = list(self.output_buffer)[-5:]  # Check last 5 entries
+                    for entry in recent_entries:
+                        if ("error" in entry.lower() or "exception" in entry.lower() or 
+                            "traceback" in entry.lower()) and "[attached]" not in entry.lower():
+                            # Make sure we haven't already processed this error
+                            if not hasattr(self, '_last_error_entry') or self._last_error_entry != entry:
+                                self._last_error_entry = entry
+                                print(f"Error detected in attached process {process.pid}: {entry}")
+                                logs = self.get_logs()
+                                self.start_repair(entry, logs)
                     
                 # Collect process metrics
                 try:
@@ -421,7 +475,10 @@ class BaseWatcher:
 # Legacy function to maintain backward compatibility
 def establish_watcher(process_target, buffer_size=None):
     """Legacy function that creates and starts a BaseWatcher instance"""
-    watcher = BaseWatcher(process_target, buffer_size)
+    # Import here to avoid circular dependency
+    import main
+    config_handler = main.get_config_handler()
+    watcher = BaseWatcher(process_target, buffer_size, config_handler=config_handler)
     watcher.start()
     return watcher
 

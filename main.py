@@ -7,8 +7,23 @@ import internal.confighandler as confighandler
 import time
 
 
-OAIClient = OpenAI(api_key=OAIKeys.get_api_key())
-ConfigHandler = confighandler.ConfigHandler()
+# Initialize these lazily to avoid blocking on API keys at import time
+OAIClient = None
+ConfigHandler = None
+
+def get_oai_client():
+    """Get OpenAI client, initializing if needed"""
+    global OAIClient
+    if OAIClient is None:
+        OAIClient = OpenAI(api_key=OAIKeys.get_api_key())
+    return OAIClient
+
+def get_config_handler():
+    """Get config handler, initializing if needed"""
+    global ConfigHandler
+    if ConfigHandler is None:
+        ConfigHandler = confighandler.ConfigHandler()
+    return ConfigHandler
 
 # Store active watchers
 active_watchers = {}
@@ -85,8 +100,15 @@ def watch_new_process(command):
         str: ID of the created watcher
     """
     try:
-        # Create a BaseWatcher instance
-        watcher = base_watcher.BaseWatcher(process_target=command)
+        # Get dependencies only if needed for repair functionality
+        config_handler = get_config_handler()
+        
+        # Create a BaseWatcher instance (OpenAI client will be lazy-loaded if needed)
+        watcher = base_watcher.BaseWatcher(
+            process_target=command, 
+            config_handler=config_handler,
+            oai_client=None  # Will be lazy-loaded when needed for repair
+        )
         
         # Start the process
         pid = watcher.start()
@@ -123,8 +145,15 @@ def watch_existing_process(pid):
             print(f"Process with PID {pid} not found")
             return None
         
+        # Get dependencies only if needed for repair functionality
+        config_handler = get_config_handler()
+        
         # Create a BaseWatcher instance and attach to the process
-        watcher = base_watcher.BaseWatcher(pid=pid)
+        watcher = base_watcher.BaseWatcher(
+            pid=pid, 
+            config_handler=config_handler,
+            oai_client=None  # Will be lazy-loaded when needed for repair
+        )
         
         if watcher.is_attached:
             watcher_id = f"attached_{pid}"
