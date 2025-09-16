@@ -26,6 +26,8 @@ class MockConfigHandler:
             return "gpt-4o-mini"
         elif key == "max_turns":
             return 5  # Use a small value for testing
+        elif key == "fixer_prompt":
+            return "You are a helpful assistant that fixes code errors."
         return default
 
 # Patch the ConfigHandler before importing any modules that use it
@@ -49,8 +51,8 @@ def is_wsl():
     except:
         return False
 
-# Update base_watcher's main.ConfigHandler reference
-base_watcher.main.ConfigHandler = MockConfigHandler()
+# Configure the mock ConfigHandler for the modules that need it
+# The base_watcher module doesn't directly use ConfigHandler, so we skip it
 
 class TestProcessFunctions(unittest.TestCase):
     
@@ -381,8 +383,14 @@ class TestBaseFixer(unittest.TestCase):
         # But save original value of the model name for teardown
         self.original_model = confighandler.ConfigHandler().get_value("model_for_fixer")
         
+        # Create mock config handler and oai client for testing
+        self.mock_config = MockConfigHandler()
+        self.mock_oai_client = MagicMock()
+        
         # Create a sample BaseFixer for testing
-        self.fixer = BaseFixer(process_target="test_target", pid=12345)
+        self.fixer = BaseFixer(process_target="test_target", pid=12345, 
+                              config_handler=self.mock_config, 
+                              oai_client=self.mock_oai_client)
         
         # Create a temporary test file
         self.test_file = tempfile.NamedTemporaryFile(delete=False, suffix='.py')
@@ -522,27 +530,29 @@ class TestBaseFixer(unittest.TestCase):
         mock_message.tool_calls = [mock_tool_call, mock_tool_call2]
         mock_response.choices = [MagicMock(message=mock_message)]
         
-        # Patch the OpenAI API call to return our mock response
-        with patch('main.OAIClient.chat.completions.create', return_value=mock_response):
-            # Also patch _execute_tool to use the real implementation but avoid real file operations
-            with patch.object(self.fixer, '_execute_tool', side_effect=self.fixer._execute_tool) as mock_execute_tool:
-                # Run the fix method in a single turn
-                result = self.fixer.fix(error=error, logs=logs, relevant_code=relevant_code)
-                
-                # Check that execute_tool was called twice
-                self.assertEqual(mock_execute_tool.call_count, 2)
-                
-                # Check that the first call was for edit_file
-                args1, kwargs1 = mock_execute_tool.call_args_list[0]
-                self.assertEqual(args1[0], "edit_file")
-                
-                # Check that the second call was for mark_as_fixed
-                args2, kwargs2 = mock_execute_tool.call_args_list[1]
-                self.assertEqual(args2[0], "mark_as_fixed")
-                
-                # Check that isfixed is now True and the method returned True
-                self.assertTrue(self.fixer.isfixed)
-                self.assertTrue(result)
+        # Set up the mock client to return our mock response
+        self.fixer.oai_client.chat.completions.create.return_value = mock_response
+        
+        # No need to patch anything, just call the fix method directly
+        # Also patch _execute_tool to use the real implementation but avoid real file operations
+        with patch.object(self.fixer, '_execute_tool', side_effect=self.fixer._execute_tool) as mock_execute_tool:
+            # Run the fix method in a single turn
+            result = self.fixer.fix(error=error, logs=logs, relevant_code=relevant_code)
+            
+            # Check that execute_tool was called twice
+            self.assertEqual(mock_execute_tool.call_count, 2)
+            
+            # Check that the first call was for edit_file
+            args1, kwargs1 = mock_execute_tool.call_args_list[0]
+            self.assertEqual(args1[0], "edit_file")
+            
+            # Check that the second call was for mark_as_fixed
+            args2, kwargs2 = mock_execute_tool.call_args_list[1]
+            self.assertEqual(args2[0], "mark_as_fixed")
+            
+            # Check that isfixed is now True and the method returned True
+            self.assertTrue(self.fixer.isfixed)
+            self.assertTrue(result)
     
     def test_fix_no_tool_calls(self):
         """Test the fix method with no tool calls"""
@@ -571,70 +581,25 @@ class TestBaseFixer(unittest.TestCase):
         mock_message2.tool_calls = [mock_tool_call]
         mock_response2.choices = [MagicMock(message=mock_message2)]
         
-        # Patch the OpenAI API call to return our mock responses in sequence
-        with patch('main.OAIClient.chat.completions.create', side_effect=[mock_response1, mock_response2]):
-            # Run the fix method - first turn (no tool calls)
-            result1 = self.fixer.fix(error=error, logs=logs, relevant_code=relevant_code)
-            
-            # Check that isfixed is still False after first turn
-            self.assertFalse(self.fixer.isfixed)
-            self.assertFalse(result1)
-            
-            # Run the fix method - second turn (mark_as_fixed)
-            result2 = self.fixer.fix(error=error, logs=logs, relevant_code=relevant_code)
-            
-            # Check that isfixed is True after second turn
-            self.assertTrue(self.fixer.isfixed)
-            self.assertTrue(result2)
+        # Set up the mock client to return our mock responses in sequence
+        self.fixer.oai_client.chat.completions.create.side_effect = [mock_response1, mock_response2]
+        
+        # No need to patch anything, just call the fix method directly
+        # Run the fix method - first turn (no tool calls)
+        result1 = self.fixer.fix(error=error, logs=logs, relevant_code=relevant_code)
+        
+        # Check that isfixed is still False after first turn
+        self.assertFalse(self.fixer.isfixed)
+        self.assertFalse(result1)
+        
+        # Run the fix method - second turn (mark_as_fixed)
+        result2 = self.fixer.fix(error=error, logs=logs, relevant_code=relevant_code)
+        
+        # Check that isfixed is True after second turn
+        self.assertTrue(self.fixer.isfixed)
+        self.assertTrue(result2)
     
-    def test_fix_method_real_api(self):
-        """Test the fix method with real API call"""
-        # Create a BaseFixer instance
-        fixer = BaseFixer(process_target="test_target", pid=12345)
-        
-        # Prepare a typical Python error for testing
-        error = "TypeError: can only concatenate str (not 'int') to str"
-        logs = """
-        > app.py:15 in main
-            result = "Hello " + 42
-        TypeError: can only concatenate str (not 'int') to str
-        """
-        relevant_code = """
-        def main():
-            result = "Hello " + 42
-            print(result)
-        
-        if __name__ == "__main__":
-            main()
-        """
-        
-        # Set isfixed to True to break out of the loop after one iteration
-        def set_isfixed(*args, **kwargs):
-            fixer.isfixed = True
-        
-        # Use monkeypatch to set isfixed after one call
-        original_create = main.OAIClient.chat.completions.create
-        
-        def create_wrapper(*args, **kwargs):
-            response = original_create(*args, **kwargs)
-            print("\n----- FULL API RESPONSE -----")
-            print(f"Response status: {response.model_dump_json(indent=2)}")
-            print("---------------------------\n")
-            set_isfixed()
-            return response
-            
-        main.OAIClient.chat.completions.create = create_wrapper
-        
-        try:
-            # Call the fix method
-            fixer.fix(error=error, logs=logs, relevant_code=relevant_code)
-            
-            # The response should have been printed by the wrapper
-            print("API call completed and response printed above")
-            
-        finally:
-            # Restore original method
-            main.OAIClient.chat.completions.create = original_create
+    # End of TestBaseFixer class
 
 if __name__ == '__main__':
     unittest.main()
