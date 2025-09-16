@@ -1,9 +1,12 @@
 from openai import OpenAI
-import main
 
-def find_relevant_code(logs):
-    response = main.OAIClient.chat.completions.create(
-        model=main.ConfigHandler.get_value("model_for_relevance_finder"),
+def find_relevant_code(logs, oai_client=None, config_handler=None):
+    if not oai_client or not config_handler:
+        # Return a simple default response if we don't have dependencies
+        return '{"file_path": "", "start_line": 0, "end_line": 0, "has_relevant_file": false}'
+        
+    response = oai_client.chat.completions.create(
+        model=config_handler.get_value("model_for_relevance_finder"),
         messages=[
             {
                 "role": "system",

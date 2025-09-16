@@ -1,13 +1,14 @@
-import main
 import json
 import apihandlers.OAIFunctionAssembler as OAIFunctionAssembler
 from watchers.fixers.tools_handler import ToolsHandler
 
 class BaseFixer:
-    def __init__(self, process_target, pid):
+    def __init__(self, process_target, pid, config_handler=None, oai_client=None):
         self.process_target = process_target
         self.pid = pid
         self.isfixed = False
+        self.config_handler = config_handler
+        self.oai_client = oai_client
 
     def fix(self, error, logs, relevant_code):
         """
@@ -25,16 +26,21 @@ class BaseFixer:
         Returns:
             bool: True if the issue was fixed in this turn, False otherwise
         """
+        # Check if we have the required dependencies
+        if not self.config_handler or not self.oai_client:
+            print("Error: Cannot fix without config handler and OpenAI client")
+            return False
+            
         # If this is the first call to fix, initialize messages
         if not hasattr(self, 'messages'):
             self.messages = [
-                {"role": "developer", "content": main.ConfigHandler.get_value("fixer_prompt")},
+                {"role": "developer", "content": self.config_handler.get_value("fixer_prompt")},
                 {"role": "user", "content": f"Error: {error}\nLogs: {logs}\nRelevant Code: {relevant_code}"}
             ]
         
         # Make an API call for this turn
-        response = main.OAIClient.chat.completions.create(
-            model=main.ConfigHandler.get_value("model_for_fixer"),
+        response = self.oai_client.chat.completions.create(
+            model=self.config_handler.get_value("model_for_fixer"),
             messages=self.messages,
             tools=OAIFunctionAssembler.get_fixer_tools(),
         )

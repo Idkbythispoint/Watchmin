@@ -8,7 +8,13 @@ import logging
 import threading
 
 def get_api_key():
+    # Try standard environment variable first
     api_key = os.getenv("OPENAI_API_KEY")
+    
+    # If not found, try the injected secret name from Copilot environment
+    if not api_key:
+        api_key = os.getenv("_OPENAIKEY")
+    
     if not api_key:
         if not os.path.exists("openai.key"):
             print("No API key found")
