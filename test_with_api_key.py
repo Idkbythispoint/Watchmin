@@ -15,7 +15,7 @@ def test_api_integration():
     print("=== Testing OpenAI API Integration ===")
     
     # Check if API key is available
-    api_key = os.getenv('OPENAI_API_KEY')
+    api_key = os.getenv('OPENAI_API_KEY') or os.getenv('_OPENAIKEY')
     if not api_key:
         print("❌ No API key found in environment")
         print("   The secret injection may not be working properly")
