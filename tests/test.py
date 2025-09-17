@@ -598,7 +598,6 @@ class TestBaseFixer(unittest.TestCase):
         self.assertTrue(self.fixer.isfixed)
         self.assertTrue(result2)
     
-    # End of TestBaseFixer class
 
 if __name__ == '__main__':
     unittest.main()
