@@ -52,7 +52,6 @@ def is_wsl():
         return False
 
 # Configure the mock ConfigHandler for the modules that need it
-# The base_watcher module doesn't directly use ConfigHandler, so we skip it
 
 class TestProcessFunctions(unittest.TestCase):
     
